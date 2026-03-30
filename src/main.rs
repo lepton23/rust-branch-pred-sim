@@ -1,5 +1,8 @@
 use std::env;
 
+mod predictors;
+use predictors::{AlwaysTake}
+
 mod tracer;
 use tracer::process_trace;
 
@@ -49,7 +52,33 @@ fn main() {
     let bp_alg = &args[1];
     let trace_path = &args[2];
 
-    run_trace(bp, trace_path);
+    let alg = {
+        match bp_alg.to_str() {
+            "always" => 0,
+            "twobit512" => 1,
+            "twobit1024" => 2,
+            "twobit2048" => 3,
+            "twobit4096" => 4,
+            "gshare" => 5,
+            "profiled" => 6,
+            _ => panic!("Unsupported BP Algorithm"),
+        }
+    };
+
+    let mut profile: Option<String> = None;
+
+    if args.len() == 4 {
+        let profile: Option<String> = Some(args[3]); 
+    } 
+
+    let meta: Meta = Meta { alg, profile };
+
+    let _ = dispatch!(&meta, |mut bp| run(&mut bp, trace_path));
+}
+
+fn run<P: Predictor>(bp: &mut P, trace_path: &str) {
+    // begin running traces through BP
+    run_trace(bp, trace_path);   
 }
 
 fn run_trace<P: Predictor>(bp: &mut P, trace_path: &str) {

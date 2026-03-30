@@ -1,16 +1,10 @@
 use std::env;
 
 mod predictors;
-use predictors::{AlwaysTake}
+use predictors::{AlwaysTake, GShare, Meta, Predictor, Profiled, TwoBit};
 
 mod tracer;
-use tracer::process_trace;
-
-#[derive(Debug, Clone)]
-pub struct Meta {
-    pub alg: u8,
-    pub profile: Option<String>,
-}
+use tracer::{process_trace, return_line_no};
 
 macro_rules! dispatch {
     ($meta:expr, $body:expr) => {
@@ -20,19 +14,19 @@ macro_rules! dispatch {
                 $body(bp)
             }
             1 => {
-                let bp = TwoBit::<512, _>::new(&$meta.clone());
+                let bp = TwoBit::<512>::new(&$meta.clone());
                 $body(bp)
             }
             2 => {
-                let bp = TwoBit::<1024, _>::new(&$meta.clone());
+                let bp = TwoBit::<1024>::new(&$meta.clone());
                 $body(bp)
             }
             3 => {
-                let bp = TwoBit::<2048, _>::new(&$meta.clone());
+                let bp = TwoBit::<2048>::new(&$meta.clone());
                 $body(bp)
             }
             4 => {
-                let bp = TwoBit::<4096, _>::new(&$meta.clone());
+                let bp = TwoBit::<4096>::new(&$meta.clone());
                 $body(bp)
             }
             5 => {
@@ -68,8 +62,8 @@ fn main() {
     let mut profile: Option<String> = None;
 
     if args.len() == 4 {
-        let profile: Option<String> = Some(args[3]); 
-    } 
+        let profile: Option<String> = Some(args[3]);
+    }
 
     let meta: Meta = Meta { alg, profile };
 
@@ -78,14 +72,24 @@ fn main() {
 
 fn run<P: Predictor>(bp: &mut P, trace_path: &str) {
     // begin running traces through BP
-    run_trace(bp, trace_path);   
+    run_trace(bp, trace_path);
+
+    let total_branches = return_line_no(trace_path).unwrap()?;
+
+    // calculate mispredict rate
+    let mispredicts = bp.get_mispredicts();
+    let rate = (mispredicts as f64) / (total_branches as f64);
+
+    println!("Mispredict Rate:");
+    println!("{mispredicts} mispredicts over {total_branches} branches.");
+    println!("\n{rate} mispredict rate.");
 }
 
 fn run_trace<P: Predictor>(bp: &mut P, trace_path: &str) {
     let _ = process_trace(trace_path, |entry| {
-        bp.process(
-            entry.pc_address,
-            entry.ta_address,
+        bp.predict(
+            entry.pc_addr,
+            entry.ta_addr,
             entry.kind,
             entry.direct,
             entry.conditional,

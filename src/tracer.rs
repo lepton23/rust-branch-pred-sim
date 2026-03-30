@@ -101,6 +101,17 @@ unsafe fn parse_line_pair_simd(ptr0: *const u8, ptr1: *const u8) -> (u64, u64) {
     (result0, result1)
 } // parse_line_pair_simd
 
+pub fn return_line_no(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let file = File::open(path);
+
+    let mmap = unsafe { MmapOptions::new().populate().map(&file) };
+
+    let line_width = 42;
+    let line_num = mmap.len() / line_width;
+
+    Ok(line_num)
+}
+
 // Main function to process tracefile - takes a closure which is called for each trace entry
 // This allows for flexible processing of the tracefile without needing to load it all into memory at once.
 // Uses memory mapping and SIMD optimisations for fast processing of large tracefiles.

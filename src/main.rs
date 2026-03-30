@@ -81,9 +81,9 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
     let mispredicts = bp.get_mispredicts();
     let rate = (mispredicts as f64) / (total_branches as f64);
 
-    println!("Mispredict Rate:");
+    println!("\n=== Mispredict Rate ===");
     println!("{mispredicts} mispredicts over {total_branches} branches.");
-    println!("\n{rate} mispredict rate.");
+    println!("\n{rate} mispredict rate \n");
 
     Ok(())
 }

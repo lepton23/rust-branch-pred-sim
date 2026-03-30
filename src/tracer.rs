@@ -101,15 +101,14 @@ unsafe fn parse_line_pair_simd(ptr0: *const u8, ptr1: *const u8) -> (u64, u64) {
     (result0, result1)
 } // parse_line_pair_simd
 
-pub fn return_line_no(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let file = File::open(path);
-
-    let mmap = unsafe { MmapOptions::new().populate().map(&file) };
+pub fn return_line_no(path: &str) -> Result<u64, Box<dyn std::error::Error>> {
+    let file = File::open(path)?;
+    let mmap = unsafe { MmapOptions::new().map(&file)? };
 
     let line_width = 42;
     let line_num = mmap.len() / line_width;
 
-    Ok(line_num)
+    Ok(line_num as u64)
 }
 
 // Main function to process tracefile - takes a closure which is called for each trace entry

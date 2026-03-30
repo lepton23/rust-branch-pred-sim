@@ -1,4 +1,3 @@
-use super::meta::Meta;
 use super::predictor::Predictor;
 use crate::tracer::TraceEntry;
 
@@ -20,7 +19,7 @@ pub struct GShare {
 }
 
 impl GShare {
-    fn new(meta: &Meta) -> Self {
+    pub fn new() -> Self {
         Self { mispredicts: 0 }
     }
 }

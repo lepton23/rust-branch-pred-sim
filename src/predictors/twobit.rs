@@ -1,4 +1,3 @@
-use super::meta::Meta;
 use super::predictor::Predictor;
 use crate::tracer::TraceEntry;
 
@@ -20,7 +19,7 @@ pub struct TwoBit<const N: usize> {
 }
 
 impl<const N: usize> TwoBit<N> {
-    fn new(meta: &Meta) -> Self {
+    pub fn new() -> Self {
         Self { mispredicts: 0 }
     }
 }

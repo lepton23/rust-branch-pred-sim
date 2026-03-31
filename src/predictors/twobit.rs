@@ -8,8 +8,8 @@ use crate::tracer::TraceEntry;
 const fn cold() {}
 
 #[inline]
-const fn likely(b: bool) -> bool {
-    if !b {
+const fn unlikely(b: bool) -> bool {
+    if b {
         cold()
     }
     b
@@ -35,7 +35,7 @@ impl<const N: usize> Predictor for TwoBit<N> {
 
         let taken = self.table.table[index as usize].predict(line.taken);
 
-        if taken != line.taken {
+        if unlikely(taken != line.taken) {
             self.mispredicts += 1;
         }
     }

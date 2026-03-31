@@ -89,7 +89,7 @@ fn main() {
             "512" => alg,
             "1024" => alg + 3,
             "2048" => alg + 6,
-            "4096" => 4096 + 9,
+            "4096" => alg + 9,
             _ => panic!("Unsupported BP Table Size"),
         }
     };

@@ -1,57 +1,30 @@
 use super::predictor::Predictor;
+use super::table::TwoBitBranchPredictionTable;
 use crate::tracer::TraceEntry;
 
-#[derive(Clone, Copy)]
-pub struct Counter {
-    pub predict_taken: bool,
-    pub prev_predict_taken: bool,
-}
+// const functions used for branch prediction hints in hot if statement paths
+#[inline]
+#[cold]
+const fn cold() {}
 
-impl Counter {
-    fn predict(&mut self, real_taken: bool) -> bool {
-        let taken = self.predict_taken;
-
-        (self.predict_taken, self.prev_predict_taken) =
-            match (self.predict_taken, self.prev_predict_taken, real_taken) {
-                (false, false, false) => (false, false),
-                (false, false, true) => (false, true),
-                (false, true, false) => (false, false),
-                (false, true, true) => (true, true),
-                (true, false, false) => (false, false),
-                (true, false, true) => (true, true),
-                (true, true, false) => (true, false),
-                (true, true, true) => (true, true),
-            };
-
-        taken
+#[inline]
+const fn likely(b: bool) -> bool {
+    if !b {
+        cold()
     }
-}
-
-pub struct BranchPredictionTable<const N: usize> {
-    table: [Counter; N],
-}
-
-impl<const N: usize> BranchPredictionTable<N> {
-    const fn new() -> Self {
-        Self {
-            table: [Counter {
-                predict_taken: false,
-                prev_predict_taken: false,
-            }; N],
-        }
-    }
+    b
 }
 
 pub struct TwoBit<const N: usize> {
     mispredicts: u64,
-    table: BranchPredictionTable<N>,
+    table: TwoBitBranchPredictionTable<N>,
 }
 
 impl<const N: usize> TwoBit<N> {
     pub fn new() -> Self {
         Self {
             mispredicts: 0,
-            table: BranchPredictionTable::<N>::new(),
+            table: TwoBitBranchPredictionTable::<N>::new(),
         }
     }
 }
@@ -62,7 +35,7 @@ impl<const N: usize> Predictor for TwoBit<N> {
 
         let taken = self.table.table[index as usize].predict(line.taken);
 
-        if taken != line.taken {
+        if !likely(taken != line.taken) {
             self.mispredicts += 1;
         }
     }

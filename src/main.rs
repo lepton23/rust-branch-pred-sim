@@ -21,23 +21,47 @@ macro_rules! dispatch {
                 $body(bp)
             }
             2 => {
-                let bp = TwoBit::<1024>::new();
+                let bp = GShare::<512>::new();
                 $body(bp)
             }
             3 => {
-                let bp = TwoBit::<2048>::new();
+                let bp = Profiled::<512>::new($meta.profile.clone());
                 $body(bp)
             }
             4 => {
-                let bp = TwoBit::<4096>::new();
+                let bp = TwoBit::<1024>::new();
                 $body(bp)
             }
             5 => {
-                let bp = GShare::new();
+                let bp = GShare::<1024>::new();
                 $body(bp)
             }
             6 => {
-                let bp = Profiled::new($meta.profile.clone());
+                let bp = Profiled::<1024>::new($meta.profile.clone());
+                $body(bp)
+            }
+            7 => {
+                let bp = TwoBit::<2048>::new();
+                $body(bp)
+            }
+            8 => {
+                let bp = GShare::<2048>::new();
+                $body(bp)
+            }
+            9 => {
+                let bp = Profiled::<2048>::new($meta.profile.clone());
+                $body(bp)
+            }
+            10 => {
+                let bp = TwoBit::<4096>::new();
+                $body(bp)
+            }
+            11 => {
+                let bp = GShare::<4096>::new();
+                $body(bp)
+            }
+            12 => {
+                let bp = Profiled::<4096>::new($meta.profile.clone());
                 $body(bp)
             }
             _ => panic!("Unsupported Predictor type"),
@@ -47,24 +71,32 @@ macro_rules! dispatch {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let bp_alg = &args[1];
-    let trace_path = &args[2];
+    let size = &args[2];
+    let trace_path = &args[3];
 
-    let alg = {
+    let mut alg = {
         match bp_alg.as_str() {
             "always" => 0,
-            "twobit512" => 1,
-            "twobit1024" => 2,
-            "twobit2048" => 3,
-            "twobit4096" => 4,
-            "gshare" => 5,
-            "profiled" => 6,
+            "twobit" => 1,
+            "gshare" => 2,
+            "profiled" => 3,
             _ => panic!("Unsupported BP Algorithm"),
         }
     };
 
+    alg = {
+        match size.as_str() {
+            "512" => alg,
+            "1024" => alg + 3,
+            "2048" => alg + 6,
+            "4096" => 4096 + 9,
+            _ => panic!("Unsupported BP Table Size"),
+        }
+    };
+
     let mut profile: Option<String> = None;
-    if args.len() == 4 {
-        profile = Some(args[3].clone());
+    if args.len() == 5 {
+        profile = Some(args[4].clone());
     }
 
     let meta = Meta { alg, profile };
@@ -79,11 +111,11 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
 
     // calculate mispredict rate
     let mispredicts = bp.get_mispredicts();
-    let rate = (mispredicts as f64) / (total_branches as f64);
+    let rate = (100 as f64) * (mispredicts as f64) / (total_branches as f64);
 
     println!("\n=== Mispredict Rate ===");
     println!("{mispredicts} mispredicts over {total_branches} branches.");
-    println!("\n{rate} mispredict rate \n");
+    println!("\n{rate}% mispredict rate \n");
 
     Ok(())
 }

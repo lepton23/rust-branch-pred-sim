@@ -35,7 +35,7 @@ impl<const N: usize> Predictor for TwoBit<N> {
 
         let taken = self.table.table[index as usize].predict(line.taken);
 
-        if !likely(taken != line.taken) {
+        if taken != line.taken {
             self.mispredicts += 1;
         }
     }

@@ -70,9 +70,10 @@ macro_rules! dispatch {
 }
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let bp_alg = &args[1];
+    let trace_path: &String = &args[1];
+    let bp_alg: &String = &args[2];
 
-    let mut alg = {
+    let mut alg: u8 = {
         match bp_alg.as_str() {
             "always" => 0,
             "twobit" => 1,
@@ -83,10 +84,8 @@ fn main() {
     };
 
     let size: &String;
-    let trace_path: &String;
     if alg != 0 {
-        size = &args[2];
-        trace_path = &args[3];
+        size = &args[3];
 
         alg = {
             match size.as_str() {
@@ -97,15 +96,16 @@ fn main() {
                 _ => panic!("Unsupported BP Table Size"),
             }
         }; 
-    } else {
-        trace_path =  &args[2];        
-    }
+    }        
 
 
 
     let mut profile: Option<String> = None;
     if args.len() == 5 {
         profile = Some(args[4].clone());
+    }
+    if args.len() > 5 || args.len() < 3 {
+        panic!("Incorrect input, usage: <path-to-executable> <trace-path> <bp-algorithm> <bp-table-size>? <profile-path>?");
     }
 
     let meta = Meta { alg, profile };
@@ -119,8 +119,8 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
     let total_branches: u64 = return_line_no(trace_path)?;
 
     // calculate mispredict rate
-    let mispredicts = bp.get_mispredicts();
-    let rate = (100 as f64) * (mispredicts as f64) / (total_branches as f64);
+    let mispredicts: u64 = bp.get_mispredicts();
+    let rate: f64 = (100 as f64) * (mispredicts as f64) / (total_branches as f64);
 
     println!("\n=== Mispredict Rate ===");
     println!("{mispredicts} mispredicts over {total_branches} branches.");

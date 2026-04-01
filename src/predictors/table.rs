@@ -1,13 +1,13 @@
-use super::counter::TwoBitCounter;
+use super::counter::SaturatingCounter;
 
-pub struct TwoBitBranchPredictionTable<const N: usize> {
-    pub table: [TwoBitCounter; N],
+pub struct BranchPredictionTable<const N: usize> {
+    pub table: [SaturatingCounter; N],
 }
 
-impl<const N: usize> TwoBitBranchPredictionTable<N> {
+impl<const N: usize> BranchPredictionTable<N> {
     pub const fn new() -> Self {
         Self {
-            table: [TwoBitCounter {
+            table: [SaturatingCounter {
                 predict_taken: false,
                 prev_predict_taken: false,
             }; N],

@@ -71,8 +71,6 @@ macro_rules! dispatch {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let bp_alg = &args[1];
-    let size = &args[2];
-    let trace_path = &args[3];
 
     let mut alg = {
         match bp_alg.as_str() {
@@ -84,15 +82,26 @@ fn main() {
         }
     };
 
-    alg = {
-        match size.as_str() {
-            "512" => alg,
-            "1024" => alg + 3,
-            "2048" => alg + 6,
-            "4096" => alg + 9,
-            _ => panic!("Unsupported BP Table Size"),
-        }
-    };
+    let size: &String;
+    let trace_path: &String;
+    if alg != 0 {
+        size = &args[2];
+        trace_path = &args[3];
+
+        alg = {
+            match size.as_str() {
+                "512" => alg,
+                "1024" => alg + 3,
+                "2048" => alg + 6,
+                "4096" => alg + 9,
+                _ => panic!("Unsupported BP Table Size"),
+            }
+        }; 
+    } else {
+        trace_path =  &args[2];        
+    }
+
+
 
     let mut profile: Option<String> = None;
     if args.len() == 5 {

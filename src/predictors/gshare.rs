@@ -17,18 +17,20 @@ const fn unlikely(b: bool) -> bool {
 
 pub struct GShare<const N: usize> {
     mispredicts: u64,
-    table: BranchPredictionTable<N>,
+    pht: BranchPredictionTable<N>,
     ghr: u64, // shift register of last log2(N) outcomes
-    mask: u64,
+    index_mask: u64,
 }
 
+// TODO: possibly add separate GHR mask which is smaller than index_mask
+// assuming here that we are using the most GHR possible - i.e. the same amount of GHR bits as the PHT index
 impl<const N: usize> GShare<N> {
     pub fn new() -> Self {
         Self {
             mispredicts: 0,
-            table: BranchPredictionTable::new(),
+            pht: BranchPredictionTable::new(),
             ghr: 0,
-            mask: (N as u64) - 1,
+            index_mask: (N as u64) - 1,
         }
     }
 }
@@ -36,16 +38,16 @@ impl<const N: usize> GShare<N> {
 impl<const N: usize> Predictor for GShare<N> {
     fn predict(&mut self, line: &TraceEntry) {
         // xor the pc_addr and ghr to index into BP table
-        let index: u64 = (line.pc_addr ^ self.ghr) & self.mask;
+        let index: u64 = (line.pc_addr ^ self.ghr) & self.index_mask;
 
-        let taken: bool = self.table.table[index as usize].predict(line.taken);
+        let taken: bool = self.pht.table[index as usize].predict(line.taken);
 
         if unlikely(taken != line.taken) {
             self.mispredicts += 1;
         }
 
         // store the last log2(N) bits of taken/not taken results
-        self.ghr = ((self.ghr << 1) | line.taken as u64) & self.mask;
+        self.ghr = ((self.ghr << 1) | line.taken as u64) & self.index_mask;
     }
 
     fn get_mispredicts(&self) -> u64 {

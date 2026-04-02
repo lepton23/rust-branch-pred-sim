@@ -7,7 +7,7 @@ use predictors::{
 };
 
 mod tracer;
-use tracer::{process_trace, return_line_no};
+use tracer::{process_trace, return_branch_no};
 
 macro_rules! dispatch {
     ($meta:expr, $body:expr) => {
@@ -95,17 +95,17 @@ fn main() {
                 "4096" => alg + 9,
                 _ => panic!("Unsupported BP Table Size"),
             }
-        }; 
-    }        
-
-
+        };
+    }
 
     let mut profile: Option<String> = None;
     if args.len() == 5 {
         profile = Some(args[4].clone());
     }
     if args.len() > 5 || args.len() < 3 {
-        panic!("Incorrect input, usage: <path-to-executable> <trace-path> <bp-algorithm> <bp-table-size>? <profile-path>?");
+        panic!(
+            "Incorrect input, usage: <path-to-executable> <trace-path> <bp-algorithm> <bp-table-size>? <profile-path>?"
+        );
     }
 
     let meta = Meta { alg, profile };
@@ -116,7 +116,7 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
     // begin running traces through BP
     run_trace(bp, trace_path);
 
-    let total_branches: u64 = return_line_no(trace_path)?;
+    let total_branches: u64 = return_branch_no()?;
 
     // calculate mispredict rate
     let mispredicts: u64 = bp.get_mispredicts();

@@ -158,7 +158,7 @@ where
             let (direct, conditional, taken) = parse_binary_triple(ptr.add(36));
             //
             // pass entries into closure for processing through the branch predictor
-            if !conditional {
+            if conditional {
                 process(TraceEntry {
                     pc_addr,
                     ta_addr,

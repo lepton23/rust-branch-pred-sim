@@ -156,15 +156,18 @@ where
             let (pc_addr, ta_addr) = parse_line_pair_simd(ptr, ptr.add(17));
             let kind = parse_char(ptr.add(34));
             let (direct, conditional, taken) = parse_binary_triple(ptr.add(36));
+            //
             // pass entries into closure for processing through the branch predictor
-            process(TraceEntry {
-                pc_addr,
-                ta_addr,
-                kind,
-                direct,
-                conditional,
-                taken,
-            });
+            if !conditional {
+                process(TraceEntry {
+                    pc_addr,
+                    ta_addr,
+                    kind,
+                    direct,
+                    conditional,
+                    taken,
+                });
+            }
         }
     }
 

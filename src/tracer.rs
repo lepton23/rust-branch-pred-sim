@@ -138,7 +138,7 @@ where
     let line_width = 42; // 41 + newline 
     let total_lines = mmap.len() / line_width;
 
-    // process quads of lines with dual-lane AVX2
+    // process lines with 256bit AVX2
     for i in 0..total_lines {
         let offset = i * line_width;
 
@@ -157,7 +157,7 @@ where
             let (direct, conditional, taken) = parse_binary_triple(ptr.add(36));
 
             // println!("{:?}", str::from_utf8(std::slice::from_raw_parts(ptr, 42)));
-            // println!("{pc_addr} {ta_addr} {direct} {conditional} {taken}");
+            // println!("{pc_addr} {ta_addr} {kind} {direct} {conditional} {taken}");
 
             // pass entries into closure for processing through the branch predictor
             if conditional {

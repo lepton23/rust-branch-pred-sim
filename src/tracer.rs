@@ -142,7 +142,7 @@ where
     for i in 0..total_lines {
         let offset = i * line_width;
 
-        // prefetch several quads ahead to hide memory latency
+        // prefetch several lines ahead to hide memory latency
         let prefetch_offset = offset + 8 * line_width; // 8 lines ahead
         if prefetch_offset < mmap.len() {
             unsafe {
@@ -151,14 +151,14 @@ where
         }
 
         unsafe {
-            // Not sure why - but parsing and processing 2 pairs sequentially seems to be fasted than parsing and processing a quad sequentially
             let ptr = mmap.as_ptr().add(offset);
             let (pc_addr, ta_addr) = parse_line_pair_simd(ptr, ptr.add(17));
             let kind = parse_char(ptr.add(34));
             let (direct, conditional, taken) = parse_binary_triple(ptr.add(36));
 
-            println!("{:?}", str::from_utf8(std::slice::from_raw_parts(ptr, 42)));
-            println!("{pc_addr} {ta_addr} {direct} {conditional} {taken}");
+            // println!("{:?}", str::from_utf8(std::slice::from_raw_parts(ptr, 42)));
+            // println!("{pc_addr} {ta_addr} {direct} {conditional} {taken}");
+
             // pass entries into closure for processing through the branch predictor
             if conditional {
                 process(TraceEntry {

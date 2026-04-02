@@ -156,7 +156,9 @@ where
             let (pc_addr, ta_addr) = parse_line_pair_simd(ptr, ptr.add(17));
             let kind = parse_char(ptr.add(34));
             let (direct, conditional, taken) = parse_binary_triple(ptr.add(36));
-            //
+
+            println!("{:?}", str::from_utf8(std::slice::from_raw_parts(ptr, 42)));
+            println!("{pc_addr} {ta_addr} {direct} {conditional} {taken}");
             // pass entries into closure for processing through the branch predictor
             if conditional {
                 process(TraceEntry {

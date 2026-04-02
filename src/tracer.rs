@@ -17,6 +17,8 @@ pub struct TraceEntry {
     pub taken: bool,
 }
 
+static mut CONDITIONALS: u64 = 0;
+
 #[inline(always)]
 unsafe fn parse_char(ptr: *const u8) -> char {
     let byte = unsafe { ptr.read() };
@@ -101,20 +103,14 @@ unsafe fn parse_line_pair_simd(ptr0: *const u8, ptr1: *const u8) -> (u64, u64) {
     (result0, result1)
 } // parse_line_pair_simd
 
-pub fn return_line_no(path: &str) -> Result<u64, Box<dyn std::error::Error>> {
-    let file = File::open(path)?;
-    let mmap = unsafe { MmapOptions::new().map(&file)? };
-
-    let line_width = 42;
-    let line_num = mmap.len() / line_width;
-
-    Ok(line_num as u64)
+pub fn return_branch_no() -> Result<u64, Box<dyn std::error::Error>> {
+    Ok(unsafe { CONDITIONALS })
 }
 
 // Main function to process tracefile - takes a closure which is called for each trace entry
 // This allows for flexible processing of the tracefile without needing to load it all into memory at once.
 // Uses memory mapping and SIMD optimisations for fast processing of large tracefiles.
-pub fn process_trace<F>(path: &str, mut process: F) -> Result<(), Box<dyn std::error::Error>>
+pub fn process_trace<F>(path: &str, mut process: F) -> Result<u64, Box<dyn std::error::Error>>
 where
     F: FnMut(TraceEntry),
 {
@@ -138,7 +134,7 @@ where
     let line_width = 42; // 41 + newline 
     let total_lines = mmap.len() / line_width;
 
-    // process lines with 256bit AVX2
+    // process quads of lines with dual-lane AVX2
     for i in 0..total_lines {
         let offset = i * line_width;
 
@@ -157,7 +153,7 @@ where
             let (direct, conditional, taken) = parse_binary_triple(ptr.add(36));
 
             // println!("{:?}", str::from_utf8(std::slice::from_raw_parts(ptr, 42)));
-            // println!("{pc_addr} {ta_addr} {kind} {direct} {conditional} {taken}");
+            // println!("{pc_addr} {ta_addr} {direct} {conditional} {taken}");
 
             // pass entries into closure for processing through the branch predictor
             if conditional {
@@ -169,9 +165,11 @@ where
                     conditional,
                     taken,
                 });
+
+                CONDITIONALS += 1;
             }
         }
     }
 
-    Ok(())
+    Ok(unsafe { CONDITIONALS })
 } // process_trace

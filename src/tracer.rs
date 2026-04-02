@@ -103,14 +103,14 @@ unsafe fn parse_line_pair_simd(ptr0: *const u8, ptr1: *const u8) -> (u64, u64) {
     (result0, result1)
 } // parse_line_pair_simd
 
-pub fn return_branch_no() -> Result<u64, Box<dyn std::error::Error>> {
-    Ok(unsafe { CONDITIONALS })
+pub fn return_branch_no() -> u64 {
+    unsafe { CONDITIONALS }
 }
 
 // Main function to process tracefile - takes a closure which is called for each trace entry
 // This allows for flexible processing of the tracefile without needing to load it all into memory at once.
 // Uses memory mapping and SIMD optimisations for fast processing of large tracefiles.
-pub fn process_trace<F>(path: &str, mut process: F) -> Result<u64, Box<dyn std::error::Error>>
+pub fn process_trace<F>(path: &str, mut process: F) -> Result<(), Box<dyn std::error::Error>>
 where
     F: FnMut(TraceEntry),
 {
@@ -171,5 +171,5 @@ where
         }
     }
 
-    Ok(unsafe { CONDITIONALS })
+    Ok(())
 } // process_trace

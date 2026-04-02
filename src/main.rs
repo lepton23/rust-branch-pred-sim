@@ -116,10 +116,9 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
     // begin running traces through BP
     run_trace(bp, trace_path);
 
-    let total_branches: u64 = return_branch_no()?;
-
     // calculate mispredict rate
     let mispredicts: u64 = bp.get_mispredicts();
+    let total_branches: u64 = return_branch_no();
     let rate: f64 = (100 as f64) * (mispredicts as f64) / (total_branches as f64);
 
     println!("\n=== Mispredict Rate ===");

@@ -18,6 +18,7 @@ const fn unlikely(b: bool) -> bool {
 pub struct TwoBit<const N: usize> {
     mispredicts: u64,
     pht: BranchPredictionTable<N>,
+    index_mask: u64,
 }
 
 impl<const N: usize> TwoBit<N> {
@@ -25,13 +26,14 @@ impl<const N: usize> TwoBit<N> {
         Self {
             mispredicts: 0,
             pht: BranchPredictionTable::<N>::new(),
+            index_mask: (N as u64) - 1,
         }
     }
 }
 
 impl<const N: usize> Predictor for TwoBit<N> {
     fn predict(&mut self, line: &TraceEntry) {
-        let index: u64 = line.pc_addr % N as u64;
+        let index: u64 = line.pc_addr & self.index_mask;
 
         let taken: bool = self.pht.table[index as usize].predict(line.taken);
 

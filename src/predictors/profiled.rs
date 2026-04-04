@@ -1,6 +1,8 @@
 use super::predictor::Predictor;
 use super::table::BranchPredictionTable;
-use crate::tracer::TraceEntry;
+use crate::tracer::{TraceEntry, process_trace};
+
+use rustc_hash::FxHashMap;
 
 // const functions used for branch prediction hints in cold if statement paths
 #[inline]
@@ -47,7 +49,7 @@ pub struct Profiled<const N: usize> {
     pht: BranchPredictionTable<N>,
     ghr: u64, // shift register of last log2(N) outcomes
     index_mask: u64,
-    profile_path: String,
+    biases: FxHashMap<u64, bool>,
 }
 
 // TODO: possibly add separate GHR mask which is smaller than index_mask
@@ -59,24 +61,55 @@ impl<const N: usize> Profiled<N> {
             pht: BranchPredictionTable::new(),
             ghr: 0,
             index_mask: (N as u64) - 1,
-            profile_path: profile.unwrap(),
+            biases: Self::profile_run(profile.unwrap()),
         }
+    }
+
+    fn profile_run(profile_path: String) -> FxHashMap<u64, bool> {
+        let mut totals: FxHashMap<u64, (u64, u64)> = FxHashMap::default();
+        let _ = process_trace(&profile_path, |entry| {
+            let count = totals.entry(entry.pc_addr).or_default();
+            if entry.taken { 
+                count.0 += 1;
+            }
+            count.1 += 1;
+        });
+
+        totals.into_iter()
+            .map(|(count , (taken, total))| (count, taken > (total / 2)))
+            .collect()
+    }
+
+    fn predict_gshare(&mut self, pc_addr: u64, line_taken: bool) -> bool {
+        // xor the pc_addr and ghr to index into BP table
+        let index: u64 = (pc_addr ^ self.ghr) & self.index_mask;
+        let taken: bool = self.pht.table[index as usize].predict(line_taken);
+
+        // store the last log2(N) bits of taken/not taken results
+        self.ghr = ((self.ghr << 1) | line_taken as u64) & self.index_mask;
+
+        taken
     }
 }
 
 impl<const N: usize> Predictor for Profiled<N> {
     fn predict(&mut self, line: &TraceEntry) {
-        // xor the pc_addr and ghr to index into BP table
-        let index: u64 = (line.pc_addr ^ self.ghr) & self.index_mask;
+        let bias = self.biases.get(&line.pc_addr).copied().unwrap_or(false);
+        let agree = if line.taken {
+            bias
+        } else {
+            !bias
+        };
 
-        let taken: bool = self.pht.table[index as usize].predict(line.taken);
-
+        let taken = if self.predict_gshare(line.pc_addr, agree) {
+            bias            
+        } else {
+            !bias
+        };
         if unlikely(taken != line.taken) {
             self.mispredicts += 1;
         }
 
-        // store the last log2(N) bits of taken/not taken results
-        self.ghr = ((self.ghr << 1) | line.taken as u64) & self.index_mask;
     }
 
     fn get_mispredicts(&self) -> u64 {

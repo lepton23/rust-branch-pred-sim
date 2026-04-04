@@ -19,3 +19,4 @@ incremental = false
 [dependencies]
 libc = "0.2.180"
 memmap2 = "0.9.9"
+rustc-hash = "2.1.2"

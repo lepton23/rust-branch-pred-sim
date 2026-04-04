@@ -99,12 +99,13 @@ fn main() {
     }
 
     let mut profile: Option<String> = None;
-    if args.len() == 5 {
-        profile = Some(args[4].clone());
+    if alg == 3 {
+        profile = Some(trace_path.clone());
     }
-    if args.len() > 5 || args.len() < 3 {
+
+    if args.len() > 4 || args.len() < 3 {
         panic!(
-            "Incorrect input, usage: <path-to-executable> <trace-path> <bp-algorithm> <bp-table-size>? <profile-path>?"
+            "Incorrect input, usage: <path-to-executable> <trace-path> <bp-algorithm> <bp-table-size>?"
         );
     }
 

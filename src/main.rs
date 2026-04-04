@@ -99,7 +99,7 @@ fn main() {
     }
 
     let mut profile: Option<String> = None;
-    if alg == 3 {
+    if alg == 3 || alg == 6 || alg == 9 || alg == 12 {
         profile = Some(trace_path.clone());
     }
 

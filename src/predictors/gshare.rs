@@ -1,5 +1,5 @@
 use super::predictor::Predictor;
-use super::table::BranchPredictionTable;
+use super::table::SaturatingTable;
 use crate::tracer::TraceEntry;
 
 // const functions used for branch prediction hints in cold if statement paths
@@ -17,7 +17,7 @@ const fn unlikely(b: bool) -> bool {
 
 pub struct GShare<const N: usize> {
     mispredicts: u64,
-    pht: BranchPredictionTable<N>,
+    pht: SaturatingTable<N>, // GShare uses saturating two-bit counters rather than the ones detailed in slides
     ghr: u64, // shift register of last log2(N) outcomes
     index_mask: u64,
 }
@@ -28,7 +28,7 @@ impl<const N: usize> GShare<N> {
     pub fn new() -> Self {
         Self {
             mispredicts: 0,
-            pht: BranchPredictionTable::new(),
+            pht: SaturatingTable::new(),
             ghr: 0,
             index_mask: (N as u64) - 1,
         }

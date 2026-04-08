@@ -1,5 +1,5 @@
 use super::predictor::Predictor;
-use super::table::BranchPredictionTable;
+use super::table::TwoBitTable;
 use crate::tracer::TraceEntry;
 
 // const functions used for branch prediction hints in cold if statement paths
@@ -17,7 +17,7 @@ const fn unlikely(b: bool) -> bool {
 
 pub struct TwoBit<const N: usize> {
     mispredicts: u64,
-    pht: BranchPredictionTable<N>,
+    pht: TwoBitTable<N>,
     index_mask: u64,
 }
 
@@ -25,7 +25,7 @@ impl<const N: usize> TwoBit<N> {
     pub fn new() -> Self {
         Self {
             mispredicts: 0,
-            pht: BranchPredictionTable::<N>::new(),
+            pht: TwoBitTable::<N>::new(),
             index_mask: (N as u64) - 1,
         }
     }

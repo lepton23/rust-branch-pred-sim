@@ -123,7 +123,7 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
     let rate: f64 = (100 as f64) * (mispredicts as f64) / (total_branches as f64);
 
     println!("\n=== Mispredict Rate ===");
-    println!("{mispredicts} mispredicts over {total_branches} branches.");
+    println!("{mispredicts} mispredicts over {total_branches} conditional branches.");
     println!("\n{rate}% mispredict rate \n");
 
     Ok(())

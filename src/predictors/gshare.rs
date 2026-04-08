@@ -40,9 +40,9 @@ impl<const N: usize> Predictor for GShare<N> {
         // xor the pc_addr and ghr to index into BP table
         let index: u64 = (line.pc_addr ^ self.ghr) & self.index_mask;
 
-        let taken: bool = self.pht.table[index as usize].predict(line.taken);
+        let prediction: bool = self.pht.table[index as usize].predict(line.taken);
 
-        if unlikely(taken != line.taken) {
+        if unlikely(prediction != line.taken) {
             self.mispredicts += 1;
         }
 

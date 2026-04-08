@@ -10,10 +10,10 @@ use std::arch::x86_64::*;
 #[derive(Debug, Clone, Copy)]
 pub struct TraceEntry {
     pub pc_addr: u64,
-    pub ta_addr: u64,
-    pub kind: char,
-    pub direct: bool,
-    pub conditional: bool,
+    pub _ta_addr: u64,
+    pub _kind: char,
+    pub _direct: bool,
+    pub _conditional: bool,
     pub taken: bool,
 }
 
@@ -133,6 +133,7 @@ where
 
     let line_width = 42; // 41 + newline 
     let total_lines = mmap.len() / line_width;
+    println!("\nTotal branches in trace: {}", total_lines);
 
     // process quads of lines with dual-lane AVX2
     for i in 0..total_lines {
@@ -159,10 +160,10 @@ where
             if conditional {
                 process(TraceEntry {
                     pc_addr,
-                    ta_addr,
-                    kind,
-                    direct,
-                    conditional,
+                    _ta_addr: ta_addr,
+                    _kind: kind,
+                    _direct: direct,
+                    _conditional: conditional,
                     taken,
                 });
 

@@ -32,16 +32,18 @@ pub struct SaturatingCounter {
 
 impl SaturatingCounter {
     pub fn predict(&mut self, real_taken: bool) -> bool {
-        let taken: bool = self.value >= 2;
+        let prediction: bool = self.value >= 2;
 
-        if real_taken && self.value < 3 {
-           self.value += 1; 
+        if real_taken{
+            if self.value < 3 {
+                self.value += 1; 
+            }
         } else {
             if self.value > 0 {
                 self.value -= 1;
             }
         }
 
-        taken
+        prediction
     }
 }

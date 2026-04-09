@@ -56,26 +56,36 @@ pub struct Profiled<const N: usize> {
 // assuming here that we are using the most GHR possible - i.e. the same amount of GHR bits as the PHT index
 impl<const N: usize> Profiled<N> {
     pub fn new(profile: Option<String>) -> Self {
+        let (gshare, ghr, biases) = Self::profile_run((N as u64) - 1, profile.unwrap());
+
         Self {
             mispredicts: 0,
-            gshare: SaturatingTable::new(),
+            gshare,
             easy_table: SaturatingTable::new(),
-            ghr: 0,
+            ghr,
             index_mask: (N as u64) - 1,
-            biases: Self::profile_run(profile.unwrap()),
+            biases, 
         }
     }
 
-    fn profile_run(profile_path: String) -> FxHashMap<u64, (bool, bool)> {
+    fn profile_run(index_mask: u64, profile_path: String) -> (SaturatingTable<N>, u64, FxHashMap<u64, (bool, bool)>) {
         let mut totals: FxHashMap<u64, (u64, u64)> = FxHashMap::default();
-        let _ = process_trace(&profile_path, |entry| {
+        let mut gshare: SaturatingTable<N> = SaturatingTable::new();
+        let mut ghr: u64 = 0;
+
+        let _ = process_trace(&profile_path, true, |entry| {
             let count = totals.entry(entry.pc_addr).or_default();
             if entry.taken { 
                 count.0 += 1;
             }
             count.1 += 1;
+
+            let index: u64 = (entry.pc_addr ^ ghr) & index_mask;
+            gshare.table[index as usize].predict(entry.taken);
+            ghr = ((ghr << 1) | entry.taken as u64) & index_mask;
         });
 
+        (gshare, ghr,
         totals.into_iter()
             .map(|(count , (taken, total))| 
                 (count, 
@@ -83,6 +93,7 @@ impl<const N: usize> Profiled<N> {
                 (taken as f64 / total as f64) < 0.95 
                     && (taken as f64 / total as f64) > 0.05)))
             .collect()
+        )
     }
 
     fn predict_branch(&mut self, pc_addr: u64, line_taken: bool, hard_branch: bool) -> bool {

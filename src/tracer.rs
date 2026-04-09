@@ -110,7 +110,7 @@ pub fn return_branch_no() -> u64 {
 // Main function to process tracefile - takes a closure which is called for each trace entry
 // This allows for flexible processing of the tracefile without needing to load it all into memory at once.
 // Uses memory mapping and SIMD optimisations for fast processing of large tracefiles.
-pub fn process_trace<F>(path: &str, mut process: F) -> Result<(), Box<dyn std::error::Error>>
+pub fn process_trace<F>(path: &str, profile: bool, mut process: F) -> Result<(), Box<dyn std::error::Error>>
 where
     F: FnMut(TraceEntry),
 {
@@ -133,7 +133,10 @@ where
 
     let line_width = 42; // 41 + newline 
     let total_lines = mmap.len() / line_width;
-    println!("\nTotal branches in trace: {}", total_lines);
+
+    if !profile {
+        println!("\nTotal branches in trace: {}", total_lines);
+    }
 
     // process quads of lines with dual-lane AVX2
     for i in 0..total_lines {

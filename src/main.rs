@@ -130,7 +130,7 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
 }
 
 fn run_trace<P: Predictor>(bp: &mut P, trace_path: &str) {
-    let _ = process_trace(trace_path, |entry| {
+    let _ = process_trace(trace_path, false, |entry| {
         bp.predict(&entry);
     });
 }

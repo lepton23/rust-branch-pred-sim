@@ -22,8 +22,6 @@ const fn unlikely(b: bool) -> bool {
     - Pre-warmed GShare: initialise branch history table from profiled run, so predictor starts "warm"
     - Profile-based hybrid selection: profile data identifies which branches are highly biased (better for static prediction), vs branches better for dynamic prediction.
                                       uses a meta predictor or compile-time selector to choose which predictor to use per branch
-    - Path profile seeding: use Ball-Larus path profiling to capture correlations across multiple branches along a path. This will seed a path-based predictor (e.g. path-indexed PHT)
-
     Agbias predictor:
     - GHR Filtering: Split profiled branches into strongly biased (easy), which have the same outcome 95% of the time, and not strongly biased (hard) sub-streams.
                      Only hard sub-stream branches will affect the GHR, saving about 70% space. This helps to reduce destructive aliasing between branches.
@@ -37,7 +35,6 @@ const fn unlikely(b: bool) -> bool {
     Branch Prediction Using Profile Data - Alex Ramirez, Josep L. Larriba-Pey, and Mateo Valero                        - Details the `agbias` predictor and GHR Filtering
     Fisher & Freudenberger, ASPLOS 1992 — "Predicting Conditional Branch Directions From Previous Runs of a Program" - Foundational paper for profile-based static prediction
     Calder et al., TOPLAS 1997 — "Evidence-Based Static Branch Prediction Using Machine Learning"                    - Extends profiling with feature-based learning
-    Ball & Larus, MICRO 1996 — "Efficient Path Profiling"                                                            - The standard algorithm for collecting path profiles
     Chang, Mahlke, Hwu, MICRO 1992 — "Using Profile Information to Assist Classic Code Optimizations"                - Profile use in compiler-directed prediction
     McFarling, WRL Tech Note TN-36, 1993 — "Combining Branch Predictors"                                             - Background on hybrid predictors
     Eric Sprangle et al., 1997. The agree predictor: a mechanism for reducing negative branch history interference. (May 1997) https://doi.org/10.1145/384286.264210
@@ -69,44 +66,54 @@ impl<const N: usize> Profiled<N> {
     }
 
     fn profile_run(index_mask: u64, profile_path: String) -> (SaturatingTable<N>, u64, FxHashMap<u64, (bool, bool)>) {
+        // PASS 1: Collect statistics
         let mut totals: FxHashMap<u64, (u64, u64)> = FxHashMap::default();
-        let mut gshare: SaturatingTable<N> = SaturatingTable::new();
-        let mut ghr: u64 = 0;
-
+        let mut entries = Vec::new();
+        
         let _ = process_trace(&profile_path, true, |entry| {
             let count = totals.entry(entry.pc_addr).or_default();
-            if entry.taken { 
-                count.0 += 1;
-            }
+            count.0 += entry.taken as u64;
             count.1 += 1;
-
-            let index: u64 = (entry.pc_addr ^ ghr) & index_mask;
-            gshare.table[index as usize].predict(entry.taken);
-            ghr = ((ghr << 1) | entry.taken as u64) & index_mask;
+            entries.push(entry);
         });
-
-        (gshare, ghr,
-        totals.into_iter()
-            .map(|(count , (taken, total))| 
-                (count, 
-                (taken > (total / 2), 
-                (taken as f64 / total as f64) < 0.95 
-                    && (taken as f64 / total as f64) > 0.05)))
-            .collect()
-        )
+        
+        // Compute biases
+        let biases: FxHashMap<u64, (bool, bool)> = totals.into_iter()
+            .map(|(pc, (taken, total))| {
+                let bias = taken > (total / 2);
+                let hard = (taken as f64 / total as f64) < 0.95 
+                        && (taken as f64 / total as f64) > 0.05;
+                (pc, (bias, hard))
+            })
+            .collect();
+        
+        // PASS 2: Train tables on agreement with bias
+        let mut gshare = SaturatingTable::new();
+        let mut ghr = 0u64;
+        
+        for entry in entries {
+            let bias = biases.get(&entry.pc_addr).map(|(b, _)| *b).unwrap_or(false);
+            let agrees = entry.taken == bias;
+            
+            let index = (entry.pc_addr ^ ghr) & index_mask;
+            gshare.table[index as usize].predict(agrees);
+            ghr = ((ghr << 1) | entry.taken as u64) & index_mask;
+        }
+        
+        (gshare, ghr, biases)
     }
 
-    fn predict_branch(&mut self, pc_addr: u64, line_taken: bool, hard_branch: bool) -> bool {
+    fn predict_branch(&mut self, pc_addr: u64, agree: bool, line_taken: bool, hard_branch: bool) -> bool {
         // xor the pc_addr and ghr to index into BP table
         if hard_branch {
             let index: u64 = (pc_addr ^ self.ghr) & self.index_mask;
-            let taken: bool = self.gshare.table[index as usize].predict(line_taken);
+            let taken: bool = self.gshare.table[index as usize].predict(agree);
             // store the last log2(N) bits of taken/not taken results
             self.ghr = ((self.ghr << 1) | line_taken as u64) & self.index_mask;
             taken
         } else {
             let index: u64 = pc_addr & self.index_mask;
-            let taken: bool = self.easy_table.table[index as usize].predict(line_taken);
+            let taken: bool = self.easy_table.table[index as usize].predict(agree);
             taken
         }
     }
@@ -115,13 +122,9 @@ impl<const N: usize> Profiled<N> {
 impl<const N: usize> Predictor for Profiled<N> {
     fn predict(&mut self, line: &TraceEntry) {
         let (bias, hard) = self.biases.get(&line.pc_addr).copied().unwrap();
-        let agree = if line.taken {
-            bias
-        } else {
-            !bias
-        };
+        let agree = line.taken == bias;
 
-        let taken = if self.predict_branch(line.pc_addr, agree, hard) {
+        let taken = if self.predict_branch(line.pc_addr, agree, line.taken, hard) {
             bias
         } else {
             !bias

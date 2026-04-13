@@ -11,30 +11,22 @@ use std::arch::x86_64::*;
 pub struct TraceEntry {
     pub pc_addr: u64,
     pub _ta_addr: u64,
-    pub _kind: char,
-    pub _direct: bool,
-    pub _conditional: bool,
     pub taken: bool,
 }
 
 static mut CONDITIONALS: u64 = 0;
 
-#[inline(always)]
-unsafe fn parse_char(ptr: *const u8) -> char {
-    let byte = unsafe { ptr.read() };
-    char::from(byte)
-}
+// #[inline(always)]
+// unsafe fn parse_char(ptr: *const u8) -> char {
+//     let byte = unsafe { ptr.read() };
+//     char::from(byte)
+// }
 
 #[inline(always)]
-unsafe fn parse_binary_triple(ptr: *const u8) -> (bool, bool, bool) {
-    // load all 5 bytes at once
-    let chunk = unsafe { (ptr.cast::<u32>()).read_unaligned() };
+unsafe fn parse_byte(ptr: *const u8) -> bool {
+    let byte = unsafe { ptr.read_unaligned() };
 
-    let b0 = (chunk & 0xFF) as u8;
-    let b1 = ((chunk >> 16) & 0xFF) as u8;
-    let b2 = unsafe { ptr.add(4).read() };
-
-    (b0 & 0x01 != 0, b1 & 0x01 != 0, b2 & 0x01 != 0)
+    byte & 0x01 == 1
 }
 
 // Use SIMD to parse pairs of addresses in one go!
@@ -114,7 +106,9 @@ pub fn process_trace<F>(path: &str, profile: bool, mut process: F) -> Result<(),
 where
     F: FnMut(TraceEntry),
 {
-    unsafe { CONDITIONALS = 0; }
+    unsafe {
+        CONDITIONALS = 0;
+    }
     let file = File::open(path)?;
 
     // Mmap::populate prefaults in all pages to avoid page faults during processing
@@ -152,22 +146,18 @@ where
         }
 
         unsafe {
+            // branch kind is not needed - calls and returns are always taken
+            // indirect branches are always taken
             let ptr = mmap.as_ptr().add(offset);
             let (pc_addr, ta_addr) = parse_line_pair_simd(ptr, ptr.add(17));
-            let kind = parse_char(ptr.add(34));
-            let (direct, conditional, taken) = parse_binary_triple(ptr.add(36));
-
-            // println!("{:?}", str::from_utf8(std::slice::from_raw_parts(ptr, 42)));
-            // println!("{pc_addr} {ta_addr} {direct} {conditional} {taken}");
+            let conditional = parse_byte(ptr.add(38));
+            let taken = parse_byte(ptr.add(40));
 
             // pass entries into closure for processing through the branch predictor
             if conditional {
                 process(TraceEntry {
                     pc_addr,
                     _ta_addr: ta_addr,
-                    _kind: kind,
-                    _direct: direct,
-                    _conditional: conditional,
                     taken,
                 });
 

@@ -124,7 +124,15 @@ fn run<P: Predictor>(bp: &mut P, trace_path: &str) -> Result<(), Box<dyn std::er
 
     println!("\n=== Mispredict Rate ===");
     println!("{mispredicts} mispredicts over {total_branches} conditional branches.");
-    println!("\n{rate}% mispredict rate \n");
+    println!("\n{rate}% mispredict rate");
+
+    if let Some(mut bias_data) = bp.get_bias_data() {
+        bias_data.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        for (pc, pct, hard) in &bias_data {
+            eprintln!("BIAS {:#018x} {:.6} {}", pc, pct, if *hard { "hard" } else { "easy" });
+        }
+    }
+    println!();
 
     Ok(())
 }

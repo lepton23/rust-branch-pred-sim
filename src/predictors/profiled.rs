@@ -46,7 +46,7 @@ pub struct Profiled<const N: usize> {
     easy_table: SaturatingTable<N>,
     ghr: u64, // shift register of last log2(N) outcomes
     index_mask: u64,
-    biases: FxHashMap<u64, (bool, bool)>,
+    biases: FxHashMap<u64, (f64, bool)>, // (taken_pct, is_hard)
 }
 
 // TODO: possibly add separate GHR mask which is smaller than index_mask
@@ -65,7 +65,7 @@ impl<const N: usize> Profiled<N> {
         }
     }
 
-    fn profile_run(index_mask: u64, profile_path: String) -> (SaturatingTable<N>, u64, FxHashMap<u64, (bool, bool)>) {
+    fn profile_run(index_mask: u64, profile_path: String) -> (SaturatingTable<N>, u64, FxHashMap<u64, (f64, bool)>) {
         // PASS 1: Collect statistics
         let mut totals: FxHashMap<u64, (u64, u64)> = FxHashMap::default();
         let mut entries = Vec::new();
@@ -78,12 +78,11 @@ impl<const N: usize> Profiled<N> {
         });
         
         // Compute biases
-        let biases: FxHashMap<u64, (bool, bool)> = totals.into_iter()
+        let biases: FxHashMap<u64, (f64, bool)> = totals.into_iter()
             .map(|(pc, (taken, total))| {
-                let bias = taken > (total / 2);
-                let hard = (taken as f64 / total as f64) < 0.95 
-                        && (taken as f64 / total as f64) > 0.05;
-                (pc, (bias, hard))
+                let pct = taken as f64 / total as f64;
+                let hard = pct < 0.95 && pct > 0.05;
+                (pc, (pct, hard))
             })
             .collect();
         
@@ -92,14 +91,14 @@ impl<const N: usize> Profiled<N> {
         let mut ghr = 0u64;
         
         for entry in entries {
-            let bias = biases.get(&entry.pc_addr).map(|(b, _)| *b).unwrap_or(false);
+            let bias = biases.get(&entry.pc_addr).map(|(pct, _)| *pct >= 0.5).unwrap_or(false);
             let agrees = entry.taken == bias;
-            
+
             let index = (entry.pc_addr ^ ghr) & index_mask;
             gshare.table[index as usize].predict(agrees);
             ghr = ((ghr << 1) | entry.taken as u64) & index_mask;
         }
-        
+
         (gshare, ghr, biases)
     }
 
@@ -121,7 +120,8 @@ impl<const N: usize> Profiled<N> {
 
 impl<const N: usize> Predictor for Profiled<N> {
     fn predict(&mut self, line: &TraceEntry) {
-        let (bias, hard) = self.biases.get(&line.pc_addr).copied().unwrap();
+        let (pct, hard) = self.biases.get(&line.pc_addr).copied().unwrap();
+        let bias = pct >= 0.5;
         let agree = line.taken == bias;
 
         let taken = if self.predict_branch(line.pc_addr, agree, line.taken, hard) {
@@ -132,10 +132,18 @@ impl<const N: usize> Predictor for Profiled<N> {
         if unlikely(taken != line.taken) {
             self.mispredicts += 1;
         }
-
     }
 
     fn get_mispredicts(&self) -> u64 {
         self.mispredicts
+    }
+
+    fn get_bias_data(&self) -> Option<Vec<(u64, f64, bool)>> {
+        Some(
+            self.biases
+                .iter()
+                .map(|(&pc, &(pct, hard))| (pc, pct, hard))
+                .collect()
+        )
     }
 }

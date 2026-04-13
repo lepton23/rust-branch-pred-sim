@@ -24,6 +24,7 @@ PREDICTORS = [("always", None)] + [
 
 MISPREDICT_RE = re.compile(r"(\d+) mispredicts over (\d+) conditional branches")
 RATE_RE = re.compile(r"([\d.]+)% mispredict rate")
+BIAS_RE = re.compile(r"BIAS (0x[0-9a-f]+) ([\d.]+) (hard|easy)")
 
 
 def build():
@@ -60,10 +61,17 @@ def run_predictor(trace_path: str, alg: str, size: str | None) -> dict:
             f"Could not parse output for {alg} {size}:\n{output}"
         )
 
+
+    bias_rows = [
+        {"pc_addr": m.group(1), "taken_pct": float(m.group(2)), "category": m.group(3)}
+        for m in BIAS_RE.finditer(result.stderr)
+    ]
+
     return {
         "mispredicts": int(m_counts.group(1)),
         "total_branches": int(m_counts.group(2)),
         "mispredict_rate": float(m_rate.group(1)),
+        "bias_rows": bias_rows,
     }
 
 
@@ -88,6 +96,8 @@ def main():
 
     # rows keyed by algorithm name
     rows: dict[str, list[dict]] = defaultdict(list)
+    # bias data: collected once per trace from the first profiled run
+    bias_data: dict[str, list[dict]] = {}
     errors = []
 
     for trace, alg, size in tqdm(jobs, desc="Running predictors", unit="run"):
@@ -103,6 +113,10 @@ def main():
                 "mispredict_rate_%": metrics["mispredict_rate"],
             }
             rows[alg].append(row)
+
+            # Collect bias data once per trace (same profile regardless of table size)
+            if alg == "profiled" and trace not in bias_data and metrics["bias_rows"]:
+                bias_data[trace] = [{"trace": trace, **r} for r in metrics["bias_rows"]]
         except RuntimeError as e:
             tqdm.write(f"ERROR: {trace} / {label}: {e}")
             errors.append((trace, label, str(e)))
@@ -122,6 +136,15 @@ def main():
             writer.writeheader()
             writer.writerows(alg_rows)
         print(f"Wrote {len(alg_rows)} rows to {out_path}")
+
+    if bias_data:
+        all_bias_rows = [row for rows in bias_data.values() for row in rows]
+        bias_path = os.path.join(output_dir, "bias_data.csv")
+        with open(bias_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["trace", "pc_addr", "taken_pct", "category"])
+            writer.writeheader()
+            writer.writerows(all_bias_rows)
+        print(f"Wrote {len(all_bias_rows)} rows to {bias_path}")
 
     if errors:
         print(f"\n{len(errors)} run(s) failed:")

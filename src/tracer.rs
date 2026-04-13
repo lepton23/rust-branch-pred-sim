@@ -114,6 +114,7 @@ pub fn process_trace<F>(path: &str, profile: bool, mut process: F) -> Result<(),
 where
     F: FnMut(TraceEntry),
 {
+    unsafe { CONDITIONALS = 0; }
     let file = File::open(path)?;
 
     // Mmap::populate prefaults in all pages to avoid page faults during processing

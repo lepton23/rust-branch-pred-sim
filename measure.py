@@ -16,9 +16,12 @@ TRACES_DIR = os.path.join(REPO_DIR, "traces")
 SIZES = ["512", "1024", "2048", "4096"]
 
 # (algorithm, size-or-None)
+# Each predictor now has two counter variants:
+#   - original: twobit (state-machine), gshare (saturating), profiled (saturating)
+#   - alternate: twobit_sat (saturating), gshare_twobit (state-machine), profiled_twobit (state-machine)
 PREDICTORS = [("always", None)] + [
     (alg, size)
-    for alg in ("twobit", "gshare", "profiled")
+    for alg in ("twobit", "gshare", "profiled", "twobit_sat", "gshare_sat", "profiled_sat")
     for size in SIZES
 ]
 
@@ -114,8 +117,8 @@ def main():
             }
             rows[alg].append(row)
 
-            # Collect bias data once per trace (same profile regardless of table size)
-            if alg == "profiled" and trace not in bias_data and metrics["bias_rows"]:
+            # Collect bias data once per trace (same profile regardless of table size or counter variant)
+            if alg in ("profiled", "profiled_twobit") and trace not in bias_data and metrics["bias_rows"]:
                 bias_data[trace] = [{"trace": trace, **r} for r in metrics["bias_rows"]]
         except RuntimeError as e:
             tqdm.write(f"ERROR: {trace} / {label}: {e}")

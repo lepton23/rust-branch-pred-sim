@@ -23,7 +23,7 @@ impl<const N: usize> SaturatingTable<N> {
     pub const fn new() -> Self {
         Self {
             table: [SaturatingCounter {
-                value: 0,
+                value: 1,
             }; N],
         }
     }

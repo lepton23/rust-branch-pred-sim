@@ -1,5 +1,5 @@
 use super::predictor::Predictor;
-use super::table::SaturatingTable;
+use super::table::{SaturatingTable, TwoBitTable};
 use crate::tracer::{TraceEntry, process_trace};
 
 use rustc_hash::FxHashMap;
@@ -40,7 +40,7 @@ const fn unlikely(b: bool) -> bool {
     Eric Sprangle et al., 1997. The agree predictor: a mechanism for reducing negative branch history interference. (May 1997) https://doi.org/10.1145/384286.264210
 */
 
-pub struct Profiled<const N: usize> {
+pub struct ProfiledSat<const N: usize> {
     mispredicts: u64,
     gshare: SaturatingTable<N>,
     easy_table: SaturatingTable<N>,
@@ -51,7 +51,7 @@ pub struct Profiled<const N: usize> {
 
 // TODO: possibly add separate GHR mask which is smaller than index_mask
 // assuming here that we are using the most GHR possible - i.e. the same amount of GHR bits as the PHT index
-impl<const N: usize> Profiled<N> {
+impl<const N: usize> ProfiledSat<N> {
     pub fn new(profile: Option<String>) -> Self {
         let (gshare, ghr, biases) = Self::profile_run((N as u64) - 1, profile.unwrap());
 
@@ -117,6 +117,108 @@ impl<const N: usize> Profiled<N> {
         }
     }
 } // impl Profiled<N>
+
+impl<const N: usize> Predictor for ProfiledSat<N> {
+    fn predict(&mut self, line: &TraceEntry) {
+        let (pct, hard) = self.biases.get(&line.pc_addr).copied().unwrap();
+        let bias = pct >= 0.5;
+        let agree = line.taken == bias;
+
+        let taken = if self.predict_branch(line.pc_addr, agree, line.taken, hard) {
+            bias
+        } else {
+            !bias
+        };
+        if unlikely(taken != line.taken) {
+            self.mispredicts += 1;
+        }
+    }
+
+    fn get_mispredicts(&self) -> u64 {
+        self.mispredicts
+    }
+
+    fn get_bias_data(&self) -> Option<Vec<(u64, f64, bool)>> {
+        Some(
+            self.biases
+                .iter()
+                .map(|(&pc, &(pct, hard))| (pc, pct, hard))
+                .collect()
+        )
+    }
+}
+
+// Profiled predictor using state-machine two-bit counter tables instead of saturating counters.
+pub struct Profiled<const N: usize> {
+    mispredicts: u64,
+    gshare: TwoBitTable<N>,
+    easy_table: TwoBitTable<N>,
+    ghr: u64,
+    index_mask: u64,
+    biases: FxHashMap<u64, (f64, bool)>,
+}
+
+impl<const N: usize> Profiled<N> {
+    pub fn new(profile: Option<String>) -> Self {
+        let (gshare, ghr, biases) = Self::profile_run((N as u64) - 1, profile.unwrap());
+
+        Self {
+            mispredicts: 0,
+            gshare,
+            easy_table: TwoBitTable::new(),
+            ghr,
+            index_mask: (N as u64) - 1,
+            biases,
+        }
+    }
+
+    fn profile_run(index_mask: u64, profile_path: String) -> (TwoBitTable<N>, u64, FxHashMap<u64, (f64, bool)>) {
+        let mut totals: FxHashMap<u64, (u64, u64)> = FxHashMap::default();
+        let mut entries = Vec::new();
+
+        let _ = process_trace(&profile_path, true, |entry| {
+            let count = totals.entry(entry.pc_addr).or_default();
+            count.0 += entry.taken as u64;
+            count.1 += 1;
+            entries.push(entry);
+        });
+
+        let biases: FxHashMap<u64, (f64, bool)> = totals.into_iter()
+            .map(|(pc, (taken, total))| {
+                let pct = taken as f64 / total as f64;
+                let hard = pct < 0.95 && pct > 0.05;
+                (pc, (pct, hard))
+            })
+            .collect();
+
+        let mut gshare = TwoBitTable::new();
+        let mut ghr = 0u64;
+
+        for entry in entries {
+            let bias = biases.get(&entry.pc_addr).map(|(pct, _)| *pct >= 0.5).unwrap_or(false);
+            let agrees = entry.taken == bias;
+
+            let index = (entry.pc_addr ^ ghr) & index_mask;
+            gshare.table[index as usize].predict(agrees);
+            ghr = ((ghr << 1) | entry.taken as u64) & index_mask;
+        }
+
+        (gshare, ghr, biases)
+    }
+
+    fn predict_branch(&mut self, pc_addr: u64, agree: bool, line_taken: bool, hard_branch: bool) -> bool {
+        if hard_branch {
+            let index: u64 = (pc_addr ^ self.ghr) & self.index_mask;
+            let taken: bool = self.gshare.table[index as usize].predict(agree);
+            self.ghr = ((self.ghr << 1) | line_taken as u64) & self.index_mask;
+            taken
+        } else {
+            let index: u64 = pc_addr & self.index_mask;
+            let taken: bool = self.easy_table.table[index as usize].predict(agree);
+            taken
+        }
+    }
+}
 
 impl<const N: usize> Predictor for Profiled<N> {
     fn predict(&mut self, line: &TraceEntry) {

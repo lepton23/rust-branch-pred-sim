@@ -2,8 +2,12 @@ use std::env;
 
 mod predictors;
 use predictors::{
-    alwaystake::AlwaysTaken, gshare::GShare, meta::Meta, predictor::Predictor, profiled::Profiled,
-    twobit::TwoBit,
+    alwaystake::AlwaysTaken,
+    gshare::{GShare, GShareSat},
+    meta::Meta,
+    predictor::Predictor,
+    profiled::{Profiled, ProfiledSat},
+    twobit::{TwoBit, TwoBitSat},
 };
 
 mod tracer;
@@ -12,58 +16,35 @@ use tracer::{process_trace, return_branch_no};
 macro_rules! dispatch {
     ($meta:expr, $body:expr) => {
         match $meta.alg {
-            0 => {
-                let bp = AlwaysTaken::new();
-                $body(bp)
-            }
-            1 => {
-                let bp = TwoBit::<512>::new();
-                $body(bp)
-            }
-            2 => {
-                let bp = GShare::<512>::new();
-                $body(bp)
-            }
-            3 => {
-                let bp = Profiled::<512>::new($meta.profile.clone());
-                $body(bp)
-            }
-            4 => {
-                let bp = TwoBit::<1024>::new();
-                $body(bp)
-            }
-            5 => {
-                let bp = GShare::<1024>::new();
-                $body(bp)
-            }
-            6 => {
-                let bp = Profiled::<1024>::new($meta.profile.clone());
-                $body(bp)
-            }
-            7 => {
-                let bp = TwoBit::<2048>::new();
-                $body(bp)
-            }
-            8 => {
-                let bp = GShare::<2048>::new();
-                $body(bp)
-            }
-            9 => {
-                let bp = Profiled::<2048>::new($meta.profile.clone());
-                $body(bp)
-            }
-            10 => {
-                let bp = TwoBit::<4096>::new();
-                $body(bp)
-            }
-            11 => {
-                let bp = GShare::<4096>::new();
-                $body(bp)
-            }
-            12 => {
-                let bp = Profiled::<4096>::new($meta.profile.clone());
-                $body(bp)
-            }
+            // --- original predictors ---
+            0 => { let bp = AlwaysTaken::new();              $body(bp) }
+            1 => { let bp = TwoBit::<512>::new();            $body(bp) }
+            2 => { let bp = GShare::<512>::new();            $body(bp) }
+            3 => { let bp = Profiled::<512>::new($meta.profile.clone());       $body(bp) }
+            4 => { let bp = TwoBit::<1024>::new();           $body(bp) }
+            5 => { let bp = GShare::<1024>::new();           $body(bp) }
+            6 => { let bp = Profiled::<1024>::new($meta.profile.clone());      $body(bp) }
+            7 => { let bp = TwoBit::<2048>::new();           $body(bp) }
+            8 => { let bp = GShare::<2048>::new();           $body(bp) }
+            9 => { let bp = Profiled::<2048>::new($meta.profile.clone());      $body(bp) }
+            10 => { let bp = TwoBit::<4096>::new();          $body(bp) }
+            11 => { let bp = GShare::<4096>::new();          $body(bp) }
+            12 => { let bp = Profiled::<4096>::new($meta.profile.clone());     $body(bp) }
+            // --- saturating-counter variant of TwoBit ---
+            13 => { let bp = TwoBitSat::<512>::new();        $body(bp) }
+            14 => { let bp = TwoBitSat::<1024>::new();       $body(bp) }
+            15 => { let bp = TwoBitSat::<2048>::new();       $body(bp) }
+            16 => { let bp = TwoBitSat::<4096>::new();       $body(bp) }
+            // --- state-machine-counter variant of GShare ---
+            17 => { let bp = GShareSat::<512>::new();     $body(bp) }
+            18 => { let bp = GShareSat::<1024>::new();    $body(bp) }
+            19 => { let bp = GShareSat::<2048>::new();    $body(bp) }
+            20 => { let bp = GShareSat::<4096>::new();    $body(bp) }
+            // --- state-machine-counter variant of Profiled ---
+            21 => { let bp = ProfiledSat::<512>::new($meta.profile.clone());   $body(bp) }
+            22 => { let bp = ProfiledSat::<1024>::new($meta.profile.clone());  $body(bp) }
+            23 => { let bp = ProfiledSat::<2048>::new($meta.profile.clone());  $body(bp) }
+            24 => { let bp = ProfiledSat::<4096>::new($meta.profile.clone());  $body(bp) }
             _ => panic!("Unsupported Predictor type"),
         }
     };
@@ -73,33 +54,42 @@ fn main() {
     let trace_path: &String = &args[1];
     let bp_alg: &String = &args[2];
 
-    let mut alg: u8 = {
-        match bp_alg.as_str() {
-            "always" => 0,
-            "twobit" => 1,
-            "gshare" => 2,
-            "profiled" => 3,
-            _ => panic!("Unsupported BP Algorithm"),
-        }
+    let base_alg: u8 = match bp_alg.as_str() {
+        "always"          => 0,
+        "twobit"          => 1,
+        "gshare"          => 2,
+        "profiled"        => 3,
+        "twobit_sat"      => 13,
+        "gshare_sat"      => 17,
+        "profiled_sat"    => 21,
+        _ => panic!("Unsupported BP Algorithm"),
     };
+
+    let mut alg = base_alg;
 
     let size: &String;
     if alg != 0 {
         size = &args[3];
 
-        alg = {
-            match size.as_str() {
-                "512" => alg,
-                "1024" => alg + 3,
-                "2048" => alg + 6,
-                "4096" => alg + 9,
-                _ => panic!("Unsupported BP Table Size"),
-            }
+        let size_offset: u8 = match size.as_str() {
+            "512"  => 0,
+            "1024" => 1,
+            "2048" => 2,
+            "4096" => 3,
+            _ => panic!("Unsupported BP Table Size"),
+        };
+
+        // Original predictors use a stride of 3 between sizes;
+        // new variants use a stride of 1 (laid out sequentially per size).
+        alg = if base_alg <= 12 {
+            base_alg + size_offset * 3
+        } else {
+            base_alg + size_offset
         };
     }
 
     let mut profile: Option<String> = None;
-    if alg == 3 || alg == 6 || alg == 9 || alg == 12 {
+    if matches!(alg, 3 | 6 | 9 | 12 | 21 | 22 | 23 | 24) {
         profile = Some(trace_path.clone());
     }
 

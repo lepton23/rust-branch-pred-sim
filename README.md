@@ -5,3 +5,9 @@ Build Instructions: \
 
 Run instructions: \
 `/target/release/p2-bp <trace-file-path> <bp-alg> <table-size optional> 2>/dev/null`
+
+Measurement instructions: \
+- `source .venv/bin/activate`
+- `pip install -r requirements.txt`
+- `python measure.py`
+- `python analyse.py`

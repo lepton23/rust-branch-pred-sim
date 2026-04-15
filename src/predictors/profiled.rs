@@ -106,14 +106,14 @@ impl<const N: usize> ProfiledSat<N> {
         // xor the pc_addr and ghr to index into BP table
         if hard_branch {
             let index: u64 = (pc_addr ^ self.ghr) & self.index_mask;
-            let taken: bool = self.gshare.table[index as usize].predict(agree);
+            let prediction: bool = self.gshare.table[index as usize].predict(agree);
             // store the last log2(N) bits of taken/not taken results
             self.ghr = ((self.ghr << 1) | line_taken as u64) & self.index_mask;
-            taken
+            prediction
         } else {
             let index: u64 = pc_addr & self.index_mask;
-            let taken: bool = self.easy_table.table[index as usize].predict(agree);
-            taken
+            let prediction: bool = self.easy_table.table[index as usize].predict(agree);
+            prediction
         }
     }
 } // impl Profiled<N>
@@ -124,12 +124,12 @@ impl<const N: usize> Predictor for ProfiledSat<N> {
         let bias = pct >= 0.5;
         let agree = line.taken == bias;
 
-        let taken = if self.predict_branch(line.pc_addr, agree, line.taken, hard) {
+        let prediction = if self.predict_branch(line.pc_addr, agree, line.taken, hard) {
             bias
         } else {
             !bias
         };
-        if unlikely(taken != line.taken) {
+        if unlikely(prediction != line.taken) {
             self.mispredicts += 1;
         }
     }
@@ -209,13 +209,13 @@ impl<const N: usize> Profiled<N> {
     fn predict_branch(&mut self, pc_addr: u64, agree: bool, line_taken: bool, hard_branch: bool) -> bool {
         if hard_branch {
             let index: u64 = (pc_addr ^ self.ghr) & self.index_mask;
-            let taken: bool = self.gshare.table[index as usize].predict(agree);
+            let prediction: bool = self.gshare.table[index as usize].predict(agree);
             self.ghr = ((self.ghr << 1) | line_taken as u64) & self.index_mask;
-            taken
+            prediction
         } else {
             let index: u64 = pc_addr & self.index_mask;
-            let taken: bool = self.easy_table.table[index as usize].predict(agree);
-            taken
+            let prediction: bool = self.easy_table.table[index as usize].predict(agree);
+            prediction
         }
     }
 }
@@ -226,12 +226,12 @@ impl<const N: usize> Predictor for Profiled<N> {
         let bias = pct >= 0.5;
         let agree = line.taken == bias;
 
-        let taken = if self.predict_branch(line.pc_addr, agree, line.taken, hard) {
+        let prediction = if self.predict_branch(line.pc_addr, agree, line.taken, hard) {
             bias
         } else {
             !bias
         };
-        if unlikely(taken != line.taken) {
+        if unlikely(prediction != line.taken) {
             self.mispredicts += 1;
         }
     }

@@ -48,9 +48,9 @@ bias = pd.read_csv(os.path.join(RESULTS_DIR, "bias_data.csv"))
 # Each predictor has two counter variants:
 #   predictor_name  → (csv stem,          predictor label, counter label)
 PREDICTOR_FILES = [
-    ("results_twobit",          "Two-bit",  "State-machine"),
-    ("results_gshare",          "GShare",   "State-machine"),
-    ("results_profiled",        "Profiled", "State-machine"),
+    ("results_twobit",          "Two-bit",  "Basic"),
+    ("results_gshare",          "GShare",   "Basic"),
+    ("results_profiled",        "Profiled", "Basic"),
     ("results_twobit_sat",      "Two-bit",  "Saturating"),
     ("results_gshare_sat",      "GShare",   "Saturating"),
     ("results_profiled_sat",    "Profiled", "Saturating"),
@@ -75,7 +75,7 @@ for df in (always, combined, bias):
 
 TABLE_SIZES = sorted(combined["table_size"].unique())
 PREDICTORS = ["Two-bit", "GShare", "Profiled"]
-COUNTERS = ["State-machine", "Saturating"]
+COUNTERS = ["Basic", "Saturating"]
 
 
 # ---------------------------------------------------------------------------

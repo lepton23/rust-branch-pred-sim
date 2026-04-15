@@ -35,9 +35,9 @@ impl<const N: usize> Predictor for TwoBit<N> {
     fn predict(&mut self, line: &TraceEntry) {
         let index: u64 = line.pc_addr & self.index_mask;
 
-        let taken: bool = self.pht.table[index as usize].predict(line.taken);
+        let prediction: bool = self.pht.table[index as usize].predict(line.taken);
 
-        if unlikely(taken != line.taken) {
+        if unlikely(prediction != line.taken) {
             self.mispredicts += 1;
         }
     }
@@ -68,9 +68,9 @@ impl<const N: usize> Predictor for TwoBitSat<N> {
     fn predict(&mut self, line: &TraceEntry) {
         let index: u64 = line.pc_addr & self.index_mask;
 
-        let taken: bool = self.pht.table[index as usize].predict(line.taken);
+        let prediction: bool = self.pht.table[index as usize].predict(line.taken);
 
-        if unlikely(taken != line.taken) {
+        if unlikely(prediction != line.taken) {
             self.mispredicts += 1;
         }
     }

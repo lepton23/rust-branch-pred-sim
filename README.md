@@ -1,4 +1,4 @@
-# CS4202-P2 Usage Guide - Student ID: 220007952
+# Branch predictor sim usage guide
 
 Build Instructions: \
 `cargo build --release`
@@ -11,3 +11,5 @@ Measurement instructions: \
 - `pip install -r requirements.txt`
 - `python measure.py`
 - `python analyse.py`
+
+### NB: Will not work without properly formed trace file as was developed for uni project
